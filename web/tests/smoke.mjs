@@ -65,7 +65,12 @@ for(const ext of ['cif','bcif']){
  events=await act(()=>window.palmol.select('all'));assert.equal(events.at(-1).selected,327,ext);
  for(const style of ['cartoon','spheres','surface','lines'])await act(`() => window.palmol.style('${style}', false)`);
 }
-console.log('PASS: XYZ, MOL2, GRO, SDF, mmCIF and BinaryCIF parsers');
+events=await act(()=>window.palmol.export());const binarySession=events.find(e=>e.type==='session').data;
+await page.route('**/binary-session.palmol',route=>route.fulfill({body:binarySession,contentType:'application/json'}));
+await act(()=>window.palmol.open('/other.xyz','xyz'));
+await act(()=>window.palmol.restore('/binary-session.palmol'));
+events=await act(()=>window.palmol.select('all'));assert.equal(events.at(-1).selected,327,'BCIF session roundtrip');
+console.log('PASS: XYZ, MOL2, GRO, SDF, mmCIF and BinaryCIF parsers + BCIF session roundtrip');
 
 if(process.env.PALMOL_STRESS){
  const atoms=100000;
