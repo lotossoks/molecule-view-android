@@ -1,0 +1,52 @@
+name: Verify existing Palmol APK
+on:
+ workflow_dispatch:
+  inputs:
+   apk_run_id:
+    description: Build workflow run containing Palmol-release-apk
+    required: true
+permissions:
+ contents: read
+ actions: read
+jobs:
+ verify:
+  runs-on: ubuntu-latest
+  timeout-minutes: 20
+  steps:
+   - uses: actions/checkout@v4
+   - uses: actions/setup-java@v4
+     with:
+      distribution: temurin
+      java-version: '17'
+   - uses: actions/download-artifact@v4
+     with:
+      name: Palmol-release-apk
+      path: apk
+      run-id: ${{ inputs.apk_run_id }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+   - run: python3 -m pip install pillow==11.1.0
+   - name: Prepare emulator host
+     run: |
+      sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk
+      echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+      sudo udevadm control --reload-rules
+      sudo udevadm trigger --name-match=kvm
+   - uses: reactivecircus/android-emulator-runner@v2
+     with:
+      api-level: 31
+      arch: x86_64
+      profile: pixel_2
+      disk-size: 2048M
+      emulator-boot-timeout: 180
+      disable-animations: true
+      script: |
+       adb install apk/app-release.apk
+       python3 scripts/android-smoke.py
+   - uses: actions/upload-artifact@v4
+     if: always()
+     with:
+      name: Palmol-android-smoke
+      path: |
+       android-*.png
+       android-logcat.txt
+       android-ui.xml
