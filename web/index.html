@@ -1,1 +1,11 @@
-<html><head><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"></head><body style="margin:0"><div id="viewer" style="position:absolute;inset:0"></div><script type="module" src="/src/main.ts"></script></body></html>
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<script>
+// Run before the module graph: some Mol* modules use this during initialization.
+if (!Object.hasOwn) Object.defineProperty(Object, 'hasOwn', {value: function(object, key) {return Object.prototype.hasOwnProperty.call(object, key);}, configurable: true, writable: true});
+function palmolBootError(message) {
+ if (window.PalmolStatus) window.PalmolStatus.postMessage(JSON.stringify({type:'state', message:'Viewer failed: '+message+'. Please update Android System WebView.', busy:false}));
+}
+window.addEventListener('error', function(event) {palmolBootError(event.message || 'Resource loading error');});
+window.addEventListener('unhandledrejection', function(event) {palmolBootError(String(event.reason));});
+</script></head><body style="margin:0;background:#101b24"><div id="viewer" style="position:absolute;inset:0"></div><script type="module" src="/src/main.ts"></script></body></html>

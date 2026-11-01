@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const browser=await chromium.launch({executablePath:'/opt/google/chrome/chrome',headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page=await browser.newPage({viewport:{width:412,height:850},hasTouch:true});
 page.on('pageerror',e=>console.error('PAGE ERROR',e.message));
-await page.addInitScript(()=>{window.events=[];window.PalmolStatus={postMessage:s=>window.events.push(JSON.parse(s))};});
+await page.addInitScript(()=>{delete Object.hasOwn;window.events=[];window.PalmolStatus={postMessage:s=>window.events.push(JSON.parse(s))};});
 await page.goto('http://127.0.0.1:8765/app/src/main/assets/viewer/index.html');
 await page.waitForFunction(()=>window.events.some(e=>e.type==='ready'),{timeout:60000});
 const pdb=`MODEL        1

@@ -12,6 +12,12 @@ jobs:
       node-version: '22'
    - run: npm ci --no-audit --no-fund && npm run build
      working-directory: web
+   - name: Web viewer regression tests
+     run: |
+      python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/palmol-http.log 2>&1 &
+      palmol_http_pid=$!
+      trap 'kill "$palmol_http_pid"' EXIT
+      node web/tests/smoke.mjs
    - run: python3 scripts/licenses.py
    - uses: actions/setup-java@v4
      with:
