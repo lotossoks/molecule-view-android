@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const browser=await chromium.launch({executablePath:'/opt/google/chrome/chrome',headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-const page=await browser.newPage({viewport:{width:412,height:850},hasTouch:true});
+const page=await browser.newPage({viewport:{width:412,height:850},hasTouch:true, ...(process.env.PALMOL_LEGACY ? {userAgent:"Mozilla/5.0 Android Chrome/91.0.4472.114 Mobile Safari/537.36"}: {})});
 page.on('pageerror',e=>console.error('PAGE ERROR',e.message));
 await page.addInitScript(()=>{delete Object.hasOwn;window.events=[];window.PalmolStatus={postMessage:s=>window.events.push(JSON.parse(s))};});
 await page.goto('http://127.0.0.1:8765/app/src/main/assets/viewer/index.html');

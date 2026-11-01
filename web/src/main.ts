@@ -19,7 +19,9 @@ const fitViewport = () => {
 };
 fitViewport();
 window.addEventListener('resize', fitViewport);
-const viewer = await Viewer.create('viewer', { layoutIsExpanded: false, layoutControlsDisplay: 'outside', layoutShowControls: false,
+// Older Android WebViews expose WebGL2 with unreliable texture/shader paths.
+const chromeMajor = Number(navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] || 999);
+const viewer = await Viewer.create('viewer', { preferWebgl1: chromeMajor < 100, layoutIsExpanded: false, layoutControlsDisplay: 'outside', layoutShowControls: false,
  layoutShowSequence: false, layoutShowLog: false, layoutShowLeftPanel: false,
  viewportShowExpand: false, viewportShowControls: false, extensions: [] });
 const p = viewer.plugin;
