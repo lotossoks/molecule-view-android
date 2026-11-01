@@ -1,119 +1,187 @@
 package org.lotossoks.palmol
 
 import android.os.Bundle
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
+import android.net.Uri
+import android.content.Intent
+import android.provider.OpenableColumns
+import android.util.Base64
+import android.webkit.*
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.webkit.WebViewAssetLoader
-import androidx.webkit.WebViewCompat
-import androidx.webkit.WebViewFeature
+import androidx.webkit.*
 import org.json.JSONObject
-import java.io.ByteArrayInputStream
+import java.io.File
 import java.util.concurrent.Executors
+import java.net.URL
 
 class MainActivity : ComponentActivity() {
  private val io = Executors.newSingleThreadExecutor()
  private var viewer: WebView? = null
- private var status by mutableStateOf("Подготовка…")
- private var fileBytes: ByteArray? = null
- private fun command(js: String) { viewer?.evaluateJavascript("window.palmol && $js", null) }
- override fun onCreate(savedInstanceState: Bundle?) {
-  super.onCreate(savedInstanceState)
-  setContent {
-   MaterialTheme {
-    var pdb by remember { mutableStateOf("1CRN") }
-    var format by remember { mutableStateOf("pdb") }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-     if (uri != null) {
-      status = "Чтение файла…"
-      val chosenFormat = format
-      io.execute {
-       try {
-        val bytes = contentResolver.openInputStream(uri)!!.use { stream ->
-         val output = java.io.ByteArrayOutputStream()
-         val buffer = ByteArray(65536)
-         while (true) {
-          val n = stream.read(buffer)
-          if (n < 0) break
-          require(output.size() + n <= 64 * 1024 * 1024) { "Лимит прототипа: 64 MB" }
-          output.write(buffer, 0, n)
-         }
-         val data = output.toByteArray()
-         require(data.size <= 64 * 1024 * 1024) { "Лимит прототипа: 64 MB" }
-         data
-        }
-        fileBytes = bytes
-        runOnUiThread { command("palmol.open('https://appassets.androidplatform.net/input/current', ${JSONObject.quote(chosenFormat)}, false)") }
-       } catch(e: Exception) { runOnUiThread { status = "Ошибка: ${e.message}" } }
-      }
-     }
-    }
-    Scaffold { padding ->
-     Column(Modifier.fillMaxSize().padding(padding)) {
-      Text("Palmol · молекула в ладони", style = MaterialTheme.typography.titleLarge)
-      Row {
-       OutlinedTextField(pdb, { pdb = it }, label = { Text("PDB ID") }, modifier = Modifier.weight(1f), singleLine = true)
-       Button(onClick = {
-        val id = pdb.trim().lowercase()
-        if (id.matches(Regex("[a-z0-9_]{4,16}"))) command("palmol.open('https://files.rcsb.org/download/$id.cif', 'mmcif')")
-        else status = "Некорректный PDB ID"
-       }) { Text("Загрузить") }
-      }
-      Row {
-       var expanded by remember { mutableStateOf(false) }
-       Box {
-        TextButton(onClick = { expanded = true }) { Text(format.uppercase()) }
-        DropdownMenu(expanded, { expanded = false }) {
-         listOf("pdb", "mmcif", "mol2", "gro", "sdf", "mol", "xyz").forEach { f ->
-          DropdownMenuItem(text = { Text(f.uppercase()) }, onClick = { format = f; expanded = false })
-         }
-        }
-       }
-       Button(onClick = { picker.launch(arrayOf("*/*")) }) { Text("Открыть файл") }
-       TextButton(onClick = { command("palmol.reset()") }) { Text("Весь вид") }
-      }
-      AndroidView(modifier = Modifier.weight(1f).fillMaxWidth(), factory = { context ->
-       val loader = WebViewAssetLoader.Builder().addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(context)).build()
-       WebView(context).apply {
-        viewer = this
-        settings.javaScriptEnabled = true
-        settings.allowFileAccess = false
-        settings.allowContentAccess = false
-        webViewClient = object : WebViewClient() {
-         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
-         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-          if (request.url.toString() == "https://appassets.androidplatform.net/input/current")
-           return WebResourceResponse("application/octet-stream", null, ByteArrayInputStream(fileBytes ?: byteArrayOf()))
-          return loader.shouldInterceptRequest(request.url)
-         }
-        }
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-         WebViewCompat.addWebMessageListener(this, "PalmolStatus", setOf("https://appassets.androidplatform.net")) { _, message, _, main, _ ->
-          if(main) runOnUiThread { status = message.data ?: "" }
-         }
-         loadUrl("https://appassets.androidplatform.net/assets/viewer/index.html")
-        } else status = "Обновите Android System WebView"
-       }
-      })
-      Text(status)
-      Row {
-       Button(onClick = { command("palmol.step(-1)") }) { Text("← Состояние") }
-       Button(onClick = { command("palmol.step(1)") }) { Text("Состояние →") }
-      }
-     }
-    }
-   }
+ private var status by mutableStateOf("Loading viewer…")
+ private var ready by mutableStateOf(false)
+ private var busy by mutableStateOf(false)
+ private var frame by mutableIntStateOf(0)
+ private var frames by mutableIntStateOf(0)
+ private var selected by mutableIntStateOf(0)
+ private var title by mutableStateOf("Palmol")
+ private var panel by mutableStateOf("")
+ private var history by mutableStateOf("")
+ private var pending: String? = null
+ private var exportBytes: ByteArray? = null
+ private var requestSave: ((String) -> Unit)? = null
+ private fun js(code: String) { if(ready) viewer?.evaluateJavascript("window.palmol && $code", null) else pending=code }
+ private fun quoted(s: String)=JSONObject.quote(s)
+ private fun cmd(s: String)=js("palmol.command(${quoted(s)})")
+ private fun openFile(file: File, name: String) {
+  val ext=name.substringAfterLast('.', "").lowercase()
+  val format=when(ext) {"pdb","ent","pdbqt"->"pdb";"cif","mmcif","bcif"->"mmcif";"mol2","gro","sdf","mol","xyz"->ext;"sd"->"sdf";"palmol"->"session";else->throw IllegalArgumentException("Unsupported extension: $ext")}
+  runOnUiThread { title=name;panel="";val url="https://appassets.androidplatform.net/documents/${file.name}";js(if(format=="session") "palmol.restore(${quoted(url)})" else "palmol.open(${quoted(url)},${quoted(format)},${ext=="bcif"})") }
+ }
+ private fun importUri(uri: Uri) {
+  status="Reading…"
+  io.execute {
+   try {
+    var name=uri.lastPathSegment ?: "structure.pdb"
+    contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { if(it.moveToFirst())name=it.getString(0) }
+    val file=File(filesDir,"documents/${System.nanoTime()}")
+    file.parentFile!!.mkdirs()
+    contentResolver.openInputStream(uri)!!.use { input -> file.outputStream().use { out ->
+     val buffer=ByteArray(65536);var total=0L
+     while(true) {val n=input.read(buffer);if(n<0)break;total+=n;require(total<=128L*1024*1024){"File limit: 128 MB"};out.write(buffer,0,n)}
+    } }
+    openFile(file,name)
+   }catch(e:Exception){runOnUiThread{status="Error: ${e.message}"}}
   }
  }
- override fun onDestroy() { viewer?.destroy(); viewer = null; io.shutdownNow(); super.onDestroy() }
+ private fun fetchPdb(id: String) {
+  val code=id.trim().lowercase()
+  if(!code.matches(Regex("[a-z0-9_]{4,16}"))) {status="Invalid PDB ID";return}
+  status="Downloading $code…";panel=""
+  io.execute {
+   try {
+    val file=File(filesDir,"documents/$code.cif");file.parentFile!!.mkdirs()
+    val connection=URL("https://files.rcsb.org/download/$code.cif").openConnection().apply {connectTimeout=20000;readTimeout=30000}
+    connection.getInputStream().use {input->file.outputStream().use {output->input.copyTo(output)}}
+    openFile(file,"$code.cif")
+   }catch(e:Exception){runOnUiThread{status="Download failed: ${e.message}"}}
+  }
+ }
+ override fun onCreate(savedInstanceState: Bundle?) {
+  super.onCreate(savedInstanceState)
+  setContent { MaterialTheme(colorScheme=darkColorScheme()) {
+   val picker=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){it?.let(::importUri)}
+   val saver=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")){uri->
+    val bytes=exportBytes
+    if(uri!=null && bytes!=null)io.execute {try{contentResolver.openOutputStream(uri)!!.use{it.write(bytes)};runOnUiThread{status="Saved"}}catch(e:Exception){runOnUiThread{status="Save failed: ${e.message}"}}}
+   }
+   requestSave={saver.launch(it)}
+   Scaffold {padding-> Column(Modifier.fillMaxSize().padding(padding)) {
+    Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),horizontalArrangement=Arrangement.SpaceBetween) {
+     Text(title,modifier=Modifier.weight(1f),maxLines=1,style=MaterialTheme.typography.titleLarge)
+     TextButton(onClick={js("palmol.reset()")},enabled=ready){Text("⤢")}
+     TextButton(onClick={panel="More"}){Text("•••")}
+    }
+    AndroidView(modifier=Modifier.weight(1f).fillMaxWidth(),factory={context->
+     val loader=WebViewAssetLoader.Builder().addPathHandler("/assets/",WebViewAssetLoader.AssetsPathHandler(context))
+      .addPathHandler("/documents/",WebViewAssetLoader.InternalStoragePathHandler(context,File(filesDir,"documents").apply{mkdirs()})).build()
+     WebView(context).apply {
+      viewer=this;settings.javaScriptEnabled=true;settings.allowFileAccess=false;settings.allowContentAccess=false
+      webViewClient=object:WebViewClient(){
+       override fun shouldOverrideUrlLoading(view:WebView,request:WebResourceRequest)=true
+       override fun shouldInterceptRequest(view:WebView,request:WebResourceRequest):WebResourceResponse?=loader.shouldInterceptRequest(request.url)
+      }
+      if(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)){
+       WebViewCompat.addWebMessageListener(this,"PalmolStatus",setOf("https://appassets.androidplatform.net")){_,message,_,main,_->
+        if(main)runOnUiThread{try{
+         val data=JSONObject(message.data ?: "{}")
+         when(data.optString("type")){
+          "ready"->{ready=true;pending?.let{js(it)};pending=null}
+          "state"->{status=data.optString("message");busy=data.optBoolean("busy");frame=data.optInt("index");frames=data.optInt("count");selected=data.optInt("selected")}
+          "session"->{exportBytes=data.getString("data").toByteArray();requestSave?.invoke("Palmol-session.palmol")}
+          "image"->{exportBytes=Base64.decode(data.getString("data").substringAfter(','),Base64.DEFAULT);requestSave?.invoke("Palmol.png")}
+          "history"->{history=data.getString("data");panel="Console"}
+         }
+        }catch(e:Exception){status="Viewer error: ${e.message}"}}
+       }
+       loadUrl("https://appassets.androidplatform.net/assets/viewer/index.html")
+      }else status="Update Android System WebView"
+     }
+    })
+    if(busy)LinearProgressIndicator(Modifier.fillMaxWidth())
+    if(status.isNotBlank())Text(status,Modifier.padding(horizontal=12.dp),maxLines=3,style=MaterialTheme.typography.bodySmall)
+    if(frames>1)Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){
+     TextButton(onClick={js("palmol.step(-1)")},enabled=!busy&&frame>0){Text("◀")}
+     Text("${frame+1} / $frames",Modifier.padding(12.dp))
+     TextButton(onClick={js("palmol.step(1)")},enabled=!busy&&frame<frames-1){Text("▶")}
+    }
+    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){
+     listOf("Open","Style","Select","Console").forEach{label->TextButton(onClick={panel=label},enabled=ready&&!busy){Text(label)}}
+    }
+   } }
+   if(panel.isNotEmpty()) {
+    var input by remember(panel){mutableStateOf(if(panel=="Select")"chain A and resi 10-25" else "")}
+    var radius by remember {mutableStateOf(5f)}
+    var whole by remember {mutableStateOf(true)}
+    var selectionOnly by remember {mutableStateOf(false)}
+    AlertDialog(onDismissRequest={panel=""},title={Text(panel)},confirmButton={TextButton(onClick={panel=""}){Text("Close")}},text={
+     Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
+      when(panel){
+       "Open"->{
+        Button(onClick={picker.launch(arrayOf("*/*"))}){Text("Local file / session")}
+        OutlinedTextField(input,{input=it},label={Text("PDB ID")},singleLine=true)
+        Button(onClick={fetchPdb(input)}){Text("Download PDB")}
+        Text("PDB · CIF · BCIF · MOL2 · GRO · SDF · MOL · XYZ")
+       }
+       "Style"->{
+        Row{Checkbox(selectionOnly,{selectionOnly=it});Text("Selected atoms only")}
+        listOf("cartoon","sticks","ball-and-stick","spheres","surface","lines").forEach{style->
+         TextButton(onClick={js("palmol.style(${quoted(style)},$selectionOnly)");panel=""}){Text(style)}
+        }
+        Row{listOf("element","chain").forEach{color->TextButton(onClick={cmd("color $color, ${if(selectionOnly)"selection" else "all"}")}){Text(color)}}}
+       }
+       "Select"->{
+        Text("$selected atoms selected · tap the structure to select")
+        Row{listOf("atom","residue","chain").forEach{g->TextButton(onClick={js("palmol.granularity(${quoted(g)})")}){Text(g)}}}
+        OutlinedTextField(input,{input=it},label={Text("PyMOL selection")})
+        Button(onClick={js("palmol.select(${quoted(input)})")}){Text("Select")}
+        Text("Neighborhood: ${"%.1f".format(radius)} Å")
+        Slider(radius,{radius=it},valueRange=1f..15f)
+        Row{Checkbox(whole,{whole=it});Text("Whole residues")}
+        Button(onClick={js("palmol.neighborhood($radius,$whole)");panel=""}){Text("Show neighborhood")}
+        Row{
+         TextButton(onClick={cmd("zoom sele");panel=""}){Text("Focus")}
+         TextButton(onClick={js("palmol.isolate()");panel=""}){Text("Isolate")}
+        }
+       }
+       "Console"->{
+        Text("select site, chain A and resi 10-25\nshow sticks, site\ncolor yellow, site\nzoom site\nframe 2\ndistance d1, id 1, id 2",style=MaterialTheme.typography.bodySmall)
+        OutlinedTextField(input,{input=it},label={Text("Command")})
+        Button(onClick={cmd(input);history+=(if(history.isEmpty())"" else "\n")+input;input=""}){Text("Run")}
+        Text(history,style=MaterialTheme.typography.bodySmall)
+       }
+       "More"->{
+        TextButton(onClick={js("palmol.export()");panel=""}){Text("Save session")}
+        TextButton(onClick={js("palmol.screenshot()");panel=""}){Text("Export PNG")}
+        TextButton(onClick={js("palmol.history()")}){Text("Command history")}
+        Text("Palmol 0.1 · Mol* 4.18.0\nOffline local rendering. Android 12+.\nMD/XTC and SFTP/ProxyJump are planned for a later release.")
+       }
+      }
+     }
+    })
+   }
+  } }
+  intent?.data?.let(::importUri)
+ }
+ override fun onNewIntent(intent:Intent){super.onNewIntent(intent);intent.data?.let(::importUri)}
+ override fun onDestroy(){ready=false;viewer?.destroy();viewer=null;io.shutdownNow();super.onDestroy()}
 }
