@@ -159,6 +159,7 @@ class MainActivity : ComponentActivity() {
        }
        "Select"->{
         Text("$selected atoms selected · tap the structure to select")
+        TextButton(onClick={js("palmol.clearSelection()")}){Text("Clear selection")}
         Row{listOf("atom","residue","chain").forEach{g->TextButton(onClick={js("palmol.granularity(${quoted(g)})")}){Text(g)}}}
         OutlinedTextField(input,{input=it},label={Text("PyMOL selection")})
         Button(onClick={js("palmol.select(${quoted(input)})")}){Text("Select")}

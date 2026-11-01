@@ -1,2 +1,3 @@
 .msp-selection-viewport-controls, .msp-viewport-controls { display: none !important; }
 .msp-plugin { background: #101b24; }
+.msp-traj-controls, .msp-animation-viewport-controls, .msp-state-snapshot-viewport-controls { display: none !important; }

@@ -1,6 +1,6 @@
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 const browser=await chromium.launch({executablePath:'/opt/google/chrome/chrome',headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page=await browser.newPage({viewport:{width:412,height:850}});
 page.on('pageerror',e=>console.error('PAGE ERROR',e.message));
@@ -56,7 +56,22 @@ for(const [format,body] of Object.entries(fixtures)){
  await act(`() => window.palmol.open('/fixture.${format}', '${format}')`);
  events=await act(()=>window.palmol.select('all'));assert.equal(events.at(-1).selected,2,format);
 }
-console.log('PASS: XYZ, MOL2, GRO, SDF parsers');
+for(const ext of ['cif','bcif']){
+ const body=readFileSync(new URL('./fixtures/1crn.'+ext,import.meta.url));
+ await page.route('**/1crn.'+ext,route=>route.fulfill({body,contentType:'application/octet-stream'}));
+ await act(`() => window.palmol.open('/1crn.${ext}', 'mmcif', ${ext==='bcif'})`);
+ events=await act(()=>window.palmol.select('all'));assert.equal(events.at(-1).selected,327,ext);
+}
+console.log('PASS: XYZ, MOL2, GRO, SDF, mmCIF and BinaryCIF parsers');
 
+if(process.env.PALMOL_STRESS){
+ const atoms=100000;
+ let xyz=atoms+'\nPalmol synthetic scale fixture\n';
+ for(let i=0;i<atoms;i++)xyz+=`C ${(i%100)*3} ${Math.floor(i/100)%100*3} ${Math.floor(i/10000)*3}\n`;
+ await page.route('**/scale.xyz',route=>route.fulfill({body:xyz,contentType:'text/plain'}));
+ const start=Date.now();await act(()=>window.palmol.open('/scale.xyz','xyz'));
+ events=await act(()=>window.palmol.select('all'));assert.equal(events.at(-1).selected,atoms);
+ console.log('PASS: 100000 synthetic atoms, load+selection',Date.now()-start,'ms (desktop software rendering, not phone FPS)');
+}
 console.log('PASS: load, models, selection, surroundings, styles, color, distance, session roundtrip, PNG');
 await browser.close();

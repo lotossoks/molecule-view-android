@@ -123,13 +123,13 @@ async function run(action:()=>Promise<void>, record?:string) {
   model=await p.builders.structure.createModel(trajectory);
   structure=await p.builders.structure.createStructure(model,{name:'model',params:{}});
   count=trajectory.obj?.data.frameCount ?? 1;
-  await show('ball-and-stick','all');
-  if(structure.obj?.data.polymerResidueCount > 10) await show('cartoon','all');
+  await show(structure.obj?.data.polymerResidueCount > 10 ? 'cartoon' : 'ball-and-stick','all');
   p.managers.camera.reset();
  }),
  command:(line:string)=>run(()=>execute(line),line),
  step:(delta:number)=>run(()=>execute(`frame ${Math.max(1,Math.min(count,index+delta+1))}`)),
  select:(text:string)=>run(()=>select(text)),
+ clearSelection:()=>p.managers.structure.selection.clear(),
  granularity:(value:any)=>p.managers.interactivity.setProps({granularity:value}),
  neighborhood:(radius:number,whole:boolean)=>run(async()=>{
   if(!Number.isFinite(radius)||radius<=0||radius>30)throw Error('Radius must be 0–30 Å');
