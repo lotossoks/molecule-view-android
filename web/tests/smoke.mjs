@@ -40,7 +40,9 @@ await act(()=>window.palmol.command('distance d1, id 1, id 2'));
 events=await act(()=>window.palmol.step(1));assert.equal(events.at(-1).index,1);
 events=await act(()=>window.palmol.export());const session=events.find(e=>e.type==='session').data;
 await page.route('**/session.palmol',route=>route.fulfill({body:session,contentType:'application/json'}));
-await act(()=>window.palmol.restore('/session.palmol'));
+await page.route('**/other.xyz',route=>route.fulfill({body:'1\nOther\nO 0 0 0\n'}));
+await act(()=>window.palmol.open('/other.xyz','xyz'));
+events=await act(()=>window.palmol.restore('/session.palmol'));assert.equal(events.at(-1).count,2);assert.equal(events.at(-1).index,1);
 await act(()=>window.palmol.step(-1));
 events=await act(()=>window.palmol.screenshot());assert(events.some(e=>e.type==='image'&&e.data.startsWith('data:image/')));
 await page.screenshot({path:'/tmp/palmol-smoke.png'});
@@ -61,6 +63,7 @@ for(const ext of ['cif','bcif']){
  await page.route('**/1crn.'+ext,route=>route.fulfill({body,contentType:'application/octet-stream'}));
  await act(`() => window.palmol.open('/1crn.${ext}', 'mmcif', ${ext==='bcif'})`);
  events=await act(()=>window.palmol.select('all'));assert.equal(events.at(-1).selected,327,ext);
+ for(const style of ['cartoon','spheres','surface','lines'])await act(`() => window.palmol.style('${style}', false)`);
 }
 console.log('PASS: XYZ, MOL2, GRO, SDF, mmCIF and BinaryCIF parsers');
 
