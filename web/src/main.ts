@@ -11,12 +11,20 @@ let index = 0, count = 0, model: any, structure: any, busy = false;
 let named: Record<string, any> = {}, layers: Record<string, any> = {};
 let log: string[] = [], undo: any[] = [];
 let messageText='';
+const fitViewport = () => {
+ const height = `${window.innerHeight}px`;
+ document.documentElement.style.height = height;
+ document.body.style.height = height;
+ document.getElementById('viewer')!.style.height = height;
+};
+fitViewport();
+window.addEventListener('resize', fitViewport);
 const viewer = await Viewer.create('viewer', { layoutIsExpanded: false, layoutControlsDisplay: 'outside', layoutShowControls: false,
  layoutShowSequence: false, layoutShowLog: false, layoutShowLeftPanel: false,
  viewportShowExpand: false, viewportShowControls: false, extensions: [] });
 const p = viewer.plugin;
 p.selectionMode = true;
-const redraw = () => { p.canvas3d?.requestResize(); p.canvas3d?.requestDraw(); };
+const redraw = () => { fitViewport(); p.canvas3d?.requestResize(); p.canvas3d?.requestDraw(); };
 new ResizeObserver(redraw).observe(document.getElementById('viewer')!);
 p.canvas3d?.setProps({renderer:{backgroundColor:Color(0x101b24)}});
 function state(message?: string) { if(message !== undefined)messageText=message; bridge({type:'state', message:messageText, index, count, busy, selected:p.managers.structure.selection.elementCount()}); }
@@ -155,5 +163,5 @@ async function run(action:()=>Promise<void>, record?:string) {
  screenshot:()=>run(async()=>{bridge({type:'image',data:await p.helpers.viewportScreenshot?.getImageDataUri()});}),
  history:()=>bridge({type:'history',data:log.join('\n')})
 };
-state('Ready');bridge({type:'ready'});
+redraw();state('Ready');bridge({type:'ready'});
 setTimeout(()=>console.info('Palmol viewport', JSON.stringify({viewport:[innerWidth,innerHeight],boxes:['#viewer','.msp-plugin','.msp-layout-main','canvas'].map(s=>{const r=document.querySelector(s)?.getBoundingClientRect();return [s,r?.width,r?.height];})})),1000);
