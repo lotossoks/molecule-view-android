@@ -194,5 +194,8 @@ class MainActivity : ComponentActivity() {
   intent?.data?.let(::importUri)
  }
  override fun onNewIntent(intent:Intent){super.onNewIntent(intent);intent.data?.let(::importUri)}
+ override fun onWindowFocusChanged(hasFocus:Boolean){super.onWindowFocusChanged(hasFocus);if(hasFocus&&ready){js("palmol.redraw()");viewer?.invalidate()}}
+ override fun onResume(){super.onResume();viewer?.onResume();if(ready)js("palmol.redraw()")}
+ override fun onPause(){viewer?.onPause();super.onPause()}
  override fun onDestroy(){ready=false;viewer?.destroy();viewer=null;io.shutdownNow();super.onDestroy()}
 }

@@ -48,6 +48,7 @@ jobs:
      with:
       name: Palmol-build-reports
       path: app/build/reports/
+   - run: python3 -m pip install pillow==11.1.0
    - name: Free emulator disk space
      run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk
    - name: Enable KVM
@@ -71,6 +72,6 @@ jobs:
      with:
       name: Palmol-android-smoke
       path: |
-       android-smoke.png
+       android-*.png
        android-logcat.txt
        android-ui.xml
