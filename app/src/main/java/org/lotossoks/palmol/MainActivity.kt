@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
  private fun openFile(file: File, name: String) {
   val ext=name.substringAfterLast('.', "").lowercase()
   val format=when(ext) {"pdb","ent","pdbqt"->"pdb";"cif","mmcif","bcif"->"mmcif";"mol2","gro","sdf","mol","xyz"->ext;"sd"->"sdf";"palmol"->"session";else->throw IllegalArgumentException("Unsupported extension: $ext")}
+  getSharedPreferences("recent",MODE_PRIVATE).edit().putString(file.name,name).apply()
   runOnUiThread { title=name;panel="";val url="https://appassets.androidplatform.net/documents/${file.name}";js(if(format=="session") "palmol.restore(${quoted(url)})" else "palmol.open(${quoted(url)},${quoted(format)},${ext=="bcif"})") }
  }
  private fun importUri(uri: Uri) {
@@ -141,6 +142,10 @@ class MainActivity : ComponentActivity() {
         OutlinedTextField(input,{input=it},label={Text("PDB ID")},singleLine=true)
         Button(onClick={fetchPdb(input)}){Text("Download PDB")}
         Text("PDB · CIF · BCIF · MOL2 · GRO · SDF · MOL · XYZ")
+        Text("Recent files (offline)")
+        getSharedPreferences("recent",MODE_PRIVATE).all.entries.toList().takeLast(8).forEach { entry ->
+         TextButton(onClick={try {openFile(File(filesDir,"documents/${entry.key}"),entry.value.toString())}catch(e:Exception){status=e.message ?: "Error"}}){Text(entry.value.toString(),maxLines=1)}
+        }
        }
        "Style"->{
         Row{Checkbox(selectionOnly,{selectionOnly=it});Text("Selected atoms only")}
@@ -167,6 +172,7 @@ class MainActivity : ComponentActivity() {
         Text("select site, chain A and resi 10-25\nshow sticks, site\ncolor yellow, site\nzoom site\nframe 2\ndistance d1, id 1, id 2",style=MaterialTheme.typography.bodySmall)
         OutlinedTextField(input,{input=it},label={Text("Command")})
         Button(onClick={cmd(input);history+=(if(history.isEmpty())"" else "\n")+input;input=""}){Text("Run")}
+        TextButton(onClick={exportBytes=history.toByteArray();requestSave?.invoke("Palmol-commands.pml")}){Text("Save command history")}
         Text(history,style=MaterialTheme.typography.bodySmall)
        }
        "More"->{

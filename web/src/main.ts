@@ -5,6 +5,7 @@ import { StructureSelection, StructureElement } from 'molstar/lib/mol-model/stru
 import { MolScriptBuilder as MS } from 'molstar/lib/mol-script/language/builder';
 import { Color } from 'molstar/lib/mol-util/color';
 import 'molstar/build/viewer/molstar.css';
+import './mobile.css';
 const bridge = (data: any) => (window as any).PalmolStatus?.postMessage(JSON.stringify(data));
 let index = 0, count = 0, model: any, structure: any, busy = false;
 let named: Record<string, any> = {}, layers: Record<string, any> = {};
@@ -15,6 +16,7 @@ const viewer = await Viewer.create('viewer', { layoutIsExpanded: false, layoutSh
  viewportShowExpand: false, viewportShowControls: false, extensions: [] });
 const p = viewer.plugin;
 p.selectionMode = true;
+p.canvas3d?.setProps({renderer:{backgroundColor:Color(0x101b24)}});
 function state(message?: string) { if(message !== undefined)messageText=message; bridge({type:'state', message:messageText, index, count, busy, selected:p.managers.structure.selection.elementCount()}); }
 p.managers.structure.selection.events.changed.subscribe(() => state());
 function expression(text: string): any {
@@ -26,7 +28,25 @@ function expression(text: string): any {
   return StructureElement.Bundle.toExpression(StructureElement.Bundle.fromLoci(loci));
  }
  if (named[t]) return named[t];
- return transpiler(t);
+ const aliases: Record<string, any> = {};
+ let expanded=t;
+ for(const [name,e] of Object.entries(named)) {
+  const token='PALMOLALIAS'+Object.keys(aliases).length;
+  const pattern=new RegExp('\\b'+name+'\\b','g');
+  if(pattern.test(expanded)) {aliases[token]=e;expanded=expanded.replace(pattern, '(resn '+token+')');}
+ }
+ const ast=transpiler(expanded);
+ function substitute(node:any):any {
+  if(!node || typeof node !== 'object')return node;
+  if(node.head?.name==='structure-query.generator.atom-groups') {
+   const test=node.args?.['residue-test'];
+   const text=JSON.stringify(test);
+   for(const [token,e] of Object.entries(aliases))if(text?.includes(token))return e;
+  }
+  if(Array.isArray(node))return node.map(substitute);
+  return Object.fromEntries(Object.entries(node).map(([k,v])=>[k,substitute(v)]));
+ }
+ return substitute(ast);
 }
 function loci(text: string) {
  if (!structure?.obj) throw Error('Open a structure first');
