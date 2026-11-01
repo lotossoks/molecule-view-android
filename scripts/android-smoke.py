@@ -3,7 +3,7 @@ import subprocess, time, re
 import xml.etree.ElementTree as ET
 
 def adb(*args):
-    return subprocess.check_output(['adb', *args], text=True)
+    return subprocess.check_output(['adb', *args], text=True, timeout=30)
 
 def nodes():
     try:
@@ -11,7 +11,7 @@ def nodes():
         xml=adb('shell','cat','/sdcard/window.xml')
         open('android-ui.xml','w').write(xml)
         return list(ET.fromstring(xml).iter('node'))
-    except (subprocess.CalledProcessError, ET.ParseError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, ET.ParseError):
         return []  # Window tree may not exist during the first launch frames.
 
 def wait_text(text, tap=False):
@@ -59,5 +59,8 @@ try:
     print('PASS: visible molecular rendering')
     print('PASS: Android launch, local offline demo, next/previous model, selection panel')
 finally:
-    open('android-logcat.txt','w').write(adb('logcat','-d'))
-    subprocess.run('adb exec-out screencap -p > android-smoke.png',shell=True)
+    try:
+        open('android-logcat.txt','w').write(adb('logcat','-d'))
+        subprocess.run('adb exec-out screencap -p > android-smoke.png',shell=True,timeout=30)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        print('Android emulator disconnected during diagnostics')

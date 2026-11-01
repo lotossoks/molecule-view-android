@@ -37,6 +37,7 @@ jobs:
       arch: x86_64
       profile: pixel_2
       disk-size: 2048M
+      emulator-options: -no-window -gpu swangle -no-snapshot -noaudio -no-boot-anim
       emulator-boot-timeout: 180
       disable-animations: true
       script: |
