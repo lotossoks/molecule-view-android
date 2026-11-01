@@ -1,0 +1,11 @@
+MODEL        1
+ATOM      1  N   ALA A   1      11.104  13.207  14.199  1.00 20.00           N
+ATOM      2  CA  ALA A   1      12.560  13.207  14.199  1.00 20.00           C
+ATOM      3  C   GLY A   2      13.560  13.207  14.199  1.00 20.00           C
+ENDMDL
+MODEL        2
+ATOM      1  N   ALA A   1      11.104  15.207  14.199  1.00 20.00           N
+ATOM      2  CA  ALA A   1      12.560  15.207  14.199  1.00 20.00           C
+ATOM      3  C   GLY A   2      13.560  15.207  14.199  1.00 20.00           C
+ENDMDL
+END

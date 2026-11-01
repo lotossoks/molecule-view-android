@@ -22,7 +22,7 @@ END
 await page.route('**/fixture.pdb',route=>route.fulfill({body:pdb,contentType:'text/plain'}));
 async function act(code) {
  await page.evaluate(()=>window.events=[]);
- await page.evaluate(code);
+ await page.evaluate(typeof code === 'string' ? '('+code+')()' : code);
  const events=await page.evaluate(()=>window.events);
  const errors=events.filter(e=>e.type==='state' && /Error|Unknown|failed/i.test(e.message));
  assert.equal(errors.length,0,JSON.stringify(errors));
@@ -44,5 +44,19 @@ await act(()=>window.palmol.restore('/session.palmol'));
 await act(()=>window.palmol.step(-1));
 events=await act(()=>window.palmol.screenshot());assert(events.some(e=>e.type==='image'&&e.data.startsWith('data:image/')));
 await page.screenshot({path:'/tmp/palmol-smoke.png'});
+const fixtures = {
+ xyz: '2\nwater fragment\nO 0 0 0\nH 0.95 0 0\n',
+ mol2: '@<TRIPOS>MOLECULE\nfragment\n2 1 0 0 0\nSMALL\nNO_CHARGES\n@<TRIPOS>ATOM\n1 O1 0 0 0 O.3 1 MOL 0\n2 H1 0.95 0 0 H 1 MOL 0\n@<TRIPOS>BOND\n1 1 2 1\n',
+ gro: 'fragment\n    2\n    1SOL     OW    1   0.000   0.000   0.000\n    1SOL    HW1    2   0.095   0.000   0.000\n   1.0 1.0 1.0\n',
+ sdf: 'fragment\n  Palmol\n\n  2  1  0  0  0  0            999 V2000\n    0.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9500    0.0000    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  1  0  0  0  0\nM  END\n$$$$\n'
+};
+for(const [format,body] of Object.entries(fixtures)){
+ await page.route('**/fixture.'+format,route=>route.fulfill({body,contentType:'text/plain'}));
+ await act(()=>window.palmol.reset());
+ await act(`() => window.palmol.open('/fixture.${format}', '${format}')`);
+ events=await act(()=>window.palmol.select('all'));assert.equal(events.at(-1).selected,2,format);
+}
+console.log('PASS: XYZ, MOL2, GRO, SDF parsers');
+
 console.log('PASS: load, models, selection, surroundings, styles, color, distance, session roundtrip, PNG');
 await browser.close();

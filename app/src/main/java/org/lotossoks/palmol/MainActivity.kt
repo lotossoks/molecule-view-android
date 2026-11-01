@@ -41,7 +41,9 @@ class MainActivity : ComponentActivity() {
  private var requestSave: ((String) -> Unit)? = null
  private fun js(code: String) { if(ready) viewer?.evaluateJavascript("window.palmol && $code", null) else pending=code }
  private fun quoted(s: String)=JSONObject.quote(s)
- private fun cmd(s: String)=js("palmol.command(${quoted(s)})")
+ private fun cmd(s: String) {
+  if(s.trim().startsWith("fetch ")) fetchPdb(s.trim().substringAfter(' ')) else js("palmol.command(${quoted(s)})")
+ }
  private fun openFile(file: File, name: String) {
   val ext=name.substringAfterLast('.', "").lowercase()
   val format=when(ext) {"pdb","ent","pdbqt"->"pdb";"cif","mmcif","bcif"->"mmcif";"mol2","gro","sdf","mol","xyz"->ext;"sd"->"sdf";"palmol"->"session";else->throw IllegalArgumentException("Unsupported extension: $ext")}
@@ -139,6 +141,7 @@ class MainActivity : ComponentActivity() {
       when(panel){
        "Open"->{
         Button(onClick={picker.launch(arrayOf("*/*"))}){Text("Local file / session")}
+        TextButton(onClick={val file=File(filesDir,"documents/demo.pdb");file.parentFile!!.mkdirs();assets.open("demo.pdb").use{input->file.outputStream().use{input.copyTo(it)}};openFile(file,"demo.pdb")}){Text("Demo: two states")}
         OutlinedTextField(input,{input=it},label={Text("PDB ID")},singleLine=true)
         Button(onClick={fetchPdb(input)}){Text("Download PDB")}
         Text("PDB · CIF · BCIF · MOL2 · GRO · SDF · MOL · XYZ")

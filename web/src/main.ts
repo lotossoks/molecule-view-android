@@ -33,7 +33,7 @@ function expression(text: string): any {
  for(const [name,e] of Object.entries(named)) {
   const token='PALMOLALIAS'+Object.keys(aliases).length;
   const pattern=new RegExp('\\b'+name+'\\b','g');
-  if(pattern.test(expanded)) {aliases[token]=e;expanded=expanded.replace(pattern, '(resn '+token+')');}
+  if(pattern.test(expanded)) {aliases[token]=e;expanded=expanded.replace(pattern, 'resn '+token);}
  }
  const ast=transpiler(expanded);
  function substitute(node:any):any {
