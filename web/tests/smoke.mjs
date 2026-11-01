@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const browser=await chromium.launch({executablePath:'/opt/google/chrome/chrome',headless:true,args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-const page=await browser.newPage({viewport:{width:412,height:850}});
+const page=await browser.newPage({viewport:{width:412,height:850},hasTouch:true});
 page.on('pageerror',e=>console.error('PAGE ERROR',e.message));
 await page.addInitScript(()=>{window.events=[];window.PalmolStatus={postMessage:s=>window.events.push(JSON.parse(s))};});
 await page.goto('http://127.0.0.1:8765/app/src/main/assets/viewer/index.html');
@@ -30,6 +30,10 @@ async function act(code) {
 }
 let events=await act(()=>window.palmol.open('/fixture.pdb','pdb'));
 assert.equal(events.at(-1).count,2);
+await page.waitForTimeout(600);
+await page.touchscreen.tap(206,425);
+await page.waitForTimeout(200);
+assert((await page.evaluate(()=>window.events.filter(e=>e.type==='state').at(-1))).selected>0,'Canvas picking');
 events=await act(()=>window.palmol.select('resi 1'));assert.equal(events.at(-1).selected,2);
 await act(()=>window.palmol.neighborhood(5,true));
 await act(()=>window.palmol.command('select site, resi 1'));
@@ -44,6 +48,10 @@ await page.route('**/other.xyz',route=>route.fulfill({body:'1\nOther\nO 0 0 0\n'
 await act(()=>window.palmol.open('/other.xyz','xyz'));
 events=await act(()=>window.palmol.restore('/session.palmol'));assert.equal(events.at(-1).count,2);assert.equal(events.at(-1).index,1);
 await act(()=>window.palmol.step(-1));
+await act(()=>window.palmol.style('spheres',false));
+await act(()=>window.palmol.command('color cyan, all'));
+await act(()=>window.palmol.select('resi 1'));
+await act(()=>window.palmol.neighborhood(5,true));
 events=await act(()=>window.palmol.screenshot());assert(events.some(e=>e.type==='image'&&e.data.startsWith('data:image/')));
 await page.screenshot({path:'/tmp/palmol-smoke.png'});
 const fixtures = {

@@ -6,10 +6,13 @@ def adb(*args):
     return subprocess.check_output(['adb', *args], text=True)
 
 def nodes():
-    adb('shell','uiautomator','dump','/sdcard/window.xml')
-    xml=adb('shell','cat','/sdcard/window.xml')
-    open('android-ui.xml','w').write(xml)
-    return list(ET.fromstring(xml).iter('node'))
+    try:
+        adb('shell','uiautomator','dump','/sdcard/window.xml')
+        xml=adb('shell','cat','/sdcard/window.xml')
+        open('android-ui.xml','w').write(xml)
+        return list(ET.fromstring(xml).iter('node'))
+    except (subprocess.CalledProcessError, ET.ParseError):
+        return []  # Window tree may not exist during the first launch frames.
 
 def wait_text(text, tap=False):
     for _ in range(30):
