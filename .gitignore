@@ -5,3 +5,5 @@ web/node_modules/
 app/src/main/assets/viewer/
 *.jks
 *.keystore
+
+.keys/

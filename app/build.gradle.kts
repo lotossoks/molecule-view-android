@@ -6,7 +6,19 @@ plugins {
 android {
  namespace = "org.lotossoks.palmol"
  compileSdk = 35
- defaultConfig { applicationId = "org.lotossoks.palmol"; minSdk = 31; targetSdk = 35; versionCode = 1; versionName = "0.1.0-prototype" }
+ defaultConfig { applicationId = "org.lotossoks.palmol"; minSdk = 31; targetSdk = 35; versionCode = 1; versionName = "0.1.0" }
+ signingConfigs {
+  create("release") {
+   val keyPath = System.getenv("PALMOL_KEYSTORE_PATH")
+   if (keyPath != null) {
+    storeFile = file(keyPath)
+    storePassword = System.getenv("PALMOL_STORE_PASSWORD")
+    keyAlias = "palmol"
+    keyPassword = System.getenv("PALMOL_STORE_PASSWORD")
+   }
+  }
+ }
+ buildTypes { getByName("release") { signingConfig = signingConfigs.getByName("release") } }
  buildFeatures { compose = true }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }

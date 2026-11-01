@@ -12,6 +12,7 @@ jobs:
       node-version: '22'
    - run: npm ci --no-audit --no-fund && npm run build
      working-directory: web
+   - run: python3 scripts/licenses.py
    - uses: actions/setup-java@v4
      with:
       distribution: temurin
@@ -19,7 +20,18 @@ jobs:
    - uses: gradle/actions/setup-gradle@v4
      with:
       gradle-version: '8.11.1'
-   - run: gradle assembleDebug
+   - name: Prepare release signing
+     env:
+      PALMOL_KEYSTORE: ${{ secrets.PALMOL_KEYSTORE }}
+     run: echo "$PALMOL_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/palmol.jks"
+   - run: gradle assembleDebug assembleRelease lintDebug
+     env:
+      PALMOL_KEYSTORE_PATH: ${{ runner.temp }}/palmol.jks
+      PALMOL_STORE_PASSWORD: ${{ secrets.PALMOL_STORE_PASSWORD }}
+   - uses: actions/upload-artifact@v4
+     with:
+      name: Palmol-release-apk
+      path: app/build/outputs/apk/release/*.apk
    - uses: actions/upload-artifact@v4
      with:
       name: Palmol-debug-apk

@@ -182,6 +182,7 @@ class MainActivity : ComponentActivity() {
         TextButton(onClick={js("palmol.export()");panel=""}){Text("Save session")}
         TextButton(onClick={js("palmol.screenshot()");panel=""}){Text("Export PNG")}
         TextButton(onClick={js("palmol.history()")}){Text("Command history")}
+        TextButton(onClick={exportBytes=assets.open("third-party-notices.txt").use{it.readBytes()};requestSave?.invoke("Palmol-third-party-notices.txt")}){Text("Third-party licenses")}
         Text("Palmol 0.1 · Mol* 4.18.0\nOffline local rendering. Android 12+.\nMD/XTC and SFTP/ProxyJump are planned for a later release.")
        }
       }
