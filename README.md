@@ -60,3 +60,5 @@ gradle assembleDebug
 Release подписывается постоянным ключом из GitHub Actions Secrets. Локальные ключи лежат в игнорируемой `.keys/`; не удаляйте их без резервной копии, иначе обновление установленного APK тем же сертификатом станет невозможным. Не публикуйте ключи или пароли.
 
 Web smoke test: запустить `python3 -m http.server 8765 --bind 127.0.0.1` из корня, затем `node web/tests/smoke.mjs`. Тест использует Chrome из `/opt/google/chrome/chrome` и проверяет модели, выборки/окружение, стили, расстояние, roundtrip сессии, PNG, MOL2/GRO/SDF/XYZ. CI собирает APK и запускает Android smoke test на API 31. Проверка реального Honor под Android 16 остаётся пользовательским тестированием.
+
+Подробный [отчёт о проверках релиза 0.1.0](docs/validation.md).

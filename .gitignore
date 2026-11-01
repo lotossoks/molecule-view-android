@@ -7,3 +7,6 @@ app/src/main/assets/viewer/
 *.keystore
 
 .keys/
+
+__pycache__/
+artifacts/
